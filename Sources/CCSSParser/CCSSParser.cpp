@@ -4,79 +4,78 @@ extern "C" {
 
 #include <CSSParser.h>
 
-void dumpCSS(char *css) {
-    CSSParser csst;
+extern "C" {
 
-    std::string css_file = css;
+/// Creates a new instance of a parser. Must be freed when finished with (see `css_parser_destroy`).
+CCSSParser * css_parser_create() {
+    CSSParser *parser = reinterpret_cast<CSSParser *>(new CSSParser());
+    return reinterpret_cast<CCSSParser *>(parser);
+}
 
-    // valid css levels are "CSS1.0", "CSS2.0", "CSS2.1", "CSS3.0"
-    csst.set_level("CSS3.0");
+/// Destroys a parser.
+/// @param parser The parser to destroy.
+void css_parser_destroy(CCSSParser *parser) {
+    delete reinterpret_cast<CSSParser *>(parser);
+}
 
-    // do the actual parsing
-    csst.parse_css(css_file);
+/// Set the parser's specification version.
+/// @param parser The parser to modify.
+/// @param level The specification version to use.
+void css_parser_set_level(CCSSParser *parser, const char *level) {
+    reinterpret_cast<CSSParser *>(parser)->set_level(level);
+}
 
-    // check for any parse errors
-    std::vector<std::string> errors = csst.get_parse_errors();
-    std::cout << "Errors: " << errors.size() << std::endl;
+/// Parse CSS from a string.
+/// @param parser The parser to use for parsing.
+/// @param css A string containing CSS to parse.
+void css_parser_parse_css(CCSSParser *parser, const char *css) {
+    reinterpret_cast<CSSParser *>(parser)->parse_css(css);
+}
+
+/// Get an error message containing all errors encountered. `NULL` is returned if no errors were encountered.
+/// @param parser The parser to get errors for.
+char * css_parser_get_error(CCSSParser *parser) {
+    std::vector<std::string> errors = reinterpret_cast<CSSParser *>(parser)->get_parse_errors();
+
+    if (errors.empty())
+        return NULL;
+
+    // Calculate total error message length
+    size_t error_length = 0;
     for(int i = 0; i < errors.size(); i++) {
-        std::cout << "  Error: " << errors[i] << std::endl;
+        error_length += errors[i].length() + 1; // An additional char for the newline separator
     }
 
-    // check for any parse warnings
-    std::vector<std::string> warnings = csst.get_parse_warnings();
-    std::cout << "Warnings: " << warnings.size() << std::endl;
-    for(int i = 0; i < warnings.size(); i++) {
-        std::cout << "  Warning: " << warnings[i] << std::endl;
+    char *error = reinterpret_cast<char *>(malloc(error_length));
+    size_t current_index = 0;
+    for(int i = 0; i < errors.size(); i++) {
+        size_t count = errors[i].length();
+        memcpy(error + current_index, errors[i].data(), count);
+        current_index += count + 1;
+
+        error[current_index - 1] = '\n';
     }
 
-    // check for any parse information messages
-    std::vector<std::string> infos = csst.get_parse_info();
-    std::cout << "Information: " << infos.size() << std::endl;
-    for(int i = 0; i < infos.size(); i++) {
-        std::cout << "  Information: " << infos[i] << std::endl;
-    }
+    // Remove the final new line
+    error[current_index - 1] = 0;
 
-    // get any @charset without having to walk the csstokens list
-    std::string cset = csst.get_charset();
-    if (!cset.empty()) std::cout << "charset: " << cset << std::endl;
+    return error;
+}
 
-    // get all @import without having to walk the csstokens list
-    std::vector<std::string> imports = csst.get_import();
-    for(int i = 0; i < imports.size(); i++) {
-        std::cout << "import: " << imports[i] << std::endl;
-    }
+CToken css_parser_get_next_token(CCSSParser *parser) {
+    CSSParser::token token = reinterpret_cast<CSSParser *>(parser)->get_next_token();
+    
+    char *data = reinterpret_cast<char *>(malloc(token.data.length()));
+    memcpy(data, token.data.c_str(), token.data.length());
 
-    // get any @namespace without having to walk the csstokens list
-    std::string ns = csst.get_namespace();
-    if (!ns.empty()) std::cout << "namespace: " << ns << std::endl;
+    CToken c_token;
+    c_token.type = static_cast<CTokenType>(token.type);
+    c_token.data = data;
+    return c_token;
+}
 
-    // The possible token type are an enum:
-    // enum token_type:
-    //
-    //     CHARSET   =  0
-    //     IMPORT    =  1
-    //     NAMESP    =  2
-    //     AT_START  =  3
-    //     AT_END    =  4
-    //     SEL_START =  5
-    //     SEL_END   =  6
-    //     PROPERTY  =  7
-    //     VALUE     =  8
-    //     COMMENT   =  9
-    //     CSS_END   = 10
+void css_token_free(CToken token) {
+    free(token.data);
+}
 
-    // now walk the sequence of parsed tokens
-    // if you know the location of the token you want in the sequence (starting with 0)
-    // simply pass start_ptr in get_next_token set to a valid starting point in the token sequence
-
-    CSSParser::token atoken = csst.get_next_token();
-    while(atoken.type != CSSParser::CSS_END) {
-        std::string ttype = csst.get_type_name(atoken.type);
-        std::cout << "Pos: " << atoken.pos << " Line: " << atoken.line << " Type: " << ttype
-        <<"  Data: " << atoken.data << std::endl;
-        atoken = csst.get_next_token();
-    }
-
-    // serialize CSS to stdout if no output file is specified
-    std::string cssout = csst.serialize_css();
 }

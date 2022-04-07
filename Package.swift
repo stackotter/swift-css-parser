@@ -29,11 +29,6 @@ let package = Package(
             publicHeadersPath: "."
         ),
 
-        .target(
-            name: "Example",
-            dependencies: ["SwiftCSSParser"]
-        ),
-
         // The CPP CSS parser
         .target(
             name: "CSSParser",
