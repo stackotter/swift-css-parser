@@ -7,18 +7,46 @@ let package = Package(
     products: [
         .library(
             name: "CSSParser",
-            targets: ["CSSParser"]
+            targets: ["SwiftCSSParser"]
         ),
     ],
     dependencies: [],
     targets: [
+        // A Swift wrapper for the C wrapper
+        .target(
+            name: "SwiftCSSParser",
+            dependencies: [
+                "CCSSParser"
+            ]
+        ),
+
+        // A C wrapper for the CPP CSS parser
+        .target(
+            name: "CCSSParser",
+            dependencies: [
+                "CSSParser"
+            ],
+            publicHeadersPath: "."
+        ),
+
+        .target(
+            name: "Example",
+            dependencies: ["SwiftCSSParser"]
+        ),
+
+        // The CPP CSS parser
         .target(
             name: "CSSParser",
-            dependencies: []
+            path: "cssparser/cssparser",
+            exclude: ["main.cpp"],
+            publicHeadersPath: "."
         ),
+
         .testTarget(
             name: "CSSParserTests",
-            dependencies: ["CSSParser"]
+            dependencies: [
+                "SwiftCSSParser"
+            ]
         ),
     ]
 )
