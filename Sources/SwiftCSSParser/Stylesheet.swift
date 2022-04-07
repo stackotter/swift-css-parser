@@ -1,7 +1,9 @@
 import Foundation
 import CCSSParser
 
+/// An error which occurs during parsing. See ``Stylesheet/parse(from:)``.
 public struct ParsingError: LocalizedError {
+    /// The error message.
     public var message: String
 
     public var errorDescription: String? {
@@ -9,6 +11,7 @@ public struct ParsingError: LocalizedError {
     }
 }
 
+/// A type of token. See ``Token``.
 public enum TokenType: Int {
     case charset
     case importDeclaration
@@ -23,15 +26,24 @@ public enum TokenType: Int {
     case cssEnd
 }
 
+/// A token within a CSS stylesheet.
 public struct Token {
+    /// The token's type.
     var type: TokenType
+    /// The token's associated data.
     var data: String
 
+    /// Creates a new token.
+    /// - Parameters:
+    ///   - type: The token's type.
+    ///   - data: The token's associated data.
     public init(type: TokenType, data: String) {
         self.type = type
         self.data = data
     }
 
+    /// Creates a token from a c representation of the token.
+    /// - Parameter cToken: The c representation of the token.
     public init?(_ cToken: CToken) {
         guard let type = TokenType(rawValue: Int(cToken.type.rawValue)) else {
             return nil
@@ -41,22 +53,32 @@ public struct Token {
     }
 }
 
+/// A CSS stylesheet.
 public struct Stylesheet {
+    /// The stylesheet's tokens.
     public var tokens: [Token]
 
+    /// Parses a CSS document from a string.
+    /// - Parameter string: The string to parse.
+    /// - Returns: A stylesheet
+    /// - Throws: A ``ParsingError`` if parsing fails.
     public static func parse(from string: String) throws -> Stylesheet {
+        // Create parser and remember to destroy it when finished
         let parser = css_parser_create()
         defer {
             css_parser_destroy(parser)
         }
 
+        // Parse
         css_parser_set_level(parser, "CSS3.0")
         css_parser_parse_css(parser, string)
 
+        // Check for errors
         if let errorCString = css_parser_get_error(parser) {
             throw ParsingError(message: String(cString: errorCString))
         }
 
+        // Convert tokens to Swift types
         var tokens: [Token] = []
         while let token = Token(css_parser_get_next_token(parser)), token.type != .cssEnd {
             tokens.append(token)
@@ -65,6 +87,8 @@ public struct Stylesheet {
         return Stylesheet(tokens: tokens)
     }
 
+    /// Creates a minified representation of the stylesheet.
+    /// - Returns: A minified CSS string.
     public func minify() -> String {
         var minified = ""
         for i in 0..<tokens.count {
