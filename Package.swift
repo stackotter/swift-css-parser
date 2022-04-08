@@ -6,7 +6,7 @@ let package = Package(
     name: "swift-css-parser",
     products: [
         .library(
-            name: "CSSParser",
+            name: "SwiftCSSParser",
             targets: ["SwiftCSSParser"]
         ),
     ],
