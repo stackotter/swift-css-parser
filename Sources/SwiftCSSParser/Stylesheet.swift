@@ -29,9 +29,9 @@ public enum TokenType: Int {
 /// A token within a CSS stylesheet.
 public struct Token {
     /// The token's type.
-    var type: TokenType
+    public var type: TokenType
     /// The token's associated data.
-    var data: String
+    public var data: String
 
     /// Creates a new token.
     /// - Parameters:
@@ -58,9 +58,15 @@ public struct Stylesheet {
     /// The stylesheet's tokens.
     public var tokens: [Token]
 
+    /// Creates a stylesheet from a list of tokens. Does not verify that the list of tokens is valid.
+    /// - Parameter tokens: The sheet's tokens.
+    public init(_ tokens: [Token]) {
+        self.tokens = tokens
+    }
+
     /// Parses a CSS document from a string.
     /// - Parameter string: The string to parse.
-    /// - Returns: A stylesheet
+    /// - Returns: The parsed stylesheet.
     /// - Throws: A ``ParsingError`` if parsing fails.
     public static func parse(from string: String) throws -> Stylesheet {
         // Create parser and remember to destroy it when finished
@@ -84,7 +90,7 @@ public struct Stylesheet {
             tokens.append(token)
         }
 
-        return Stylesheet(tokens: tokens)
+        return Stylesheet(tokens)
     }
 
     /// Creates a minified representation of the stylesheet.
