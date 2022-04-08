@@ -65,7 +65,7 @@ char * css_parser_get_error(CCSSParser *parser) {
 CToken css_parser_get_next_token(CCSSParser *parser) {
     CSSParser::token token = reinterpret_cast<CSSParser *>(parser)->get_next_token();
     
-    char *data = reinterpret_cast<char *>(malloc(token.data.length()));
+    char *data = reinterpret_cast<char *>(malloc(token.data.length() + 1));
     strncpy(data, token.data.c_str(), token.data.length());
     data[token.data.length()] = 0;
 
