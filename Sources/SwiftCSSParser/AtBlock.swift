@@ -1,9 +1,18 @@
 /// An at-block, e.g. an `@media` css block.
 public struct AtBlock: Equatable {
-    /// The block's identifier (e.g. for an `@media` it's `media`).
+    /// The block's identifier (e.g. for an `@media` block it's `media`).
     public var identifier: String
     /// The statements nested inside the block.
     public var statements: [Statement]
+
+    /// Creates an at-block.
+    /// - Parameters:
+    ///   - identifier: The block's identifier (e.g. for an `@media` block it's `media`).
+    ///   - statements: The statements nested within the block.
+    public init(identifier: String, statements: [Statement]) {
+        self.identifier = identifier
+        self.statements = statements
+    }
 
     /// Gets a string representation of this at-block with the minimum possible length.
     /// - Returns: A minified string representation of this at-block.

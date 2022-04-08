@@ -5,6 +5,15 @@ public struct RuleSet: Equatable {
     /// The rule set's declarations.
     public var declarations: [Declaration]
 
+    /// Creates a rule set.
+    /// - Parameters:
+    ///   - selector: The selector that this rule set applies to.
+    ///   - declarations: The declarations that the rule set applies.
+    public init(selector: String, declarations: [Declaration]) {
+        self.selector = selector
+        self.declarations = declarations
+    }
+
     /// Gets a string representation with the minimum possible length.
     /// - Returns: A minified string representation of this rule set.
     public func minified() -> String {

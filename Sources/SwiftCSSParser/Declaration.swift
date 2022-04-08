@@ -5,6 +5,15 @@ public struct Declaration: Equatable {
     /// The value this declaration sets for the property.
     public var value: String
 
+    /// Creates a declaration.
+    /// - Parameters:
+    ///   - property: The name of the property that the declaration is for.
+    ///   - value: The value that the declaration specifies for the property.
+    public init(property: String, value: String) {
+        self.property = property
+        self.value = value
+    }
+
     /// Gets a string representation with the minimum possible length.
     /// - Returns: A minified string representation of this declaration.
     public func minified() -> String {

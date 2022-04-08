@@ -1,7 +1,7 @@
 import Foundation
 import CCSSParser
 
-/// A CSS stylesheet.
+/// A parsed CSS stylesheet.
 public struct Stylesheet: Equatable {
     /// The stylesheet's tokens.
     public var statements: [Statement]
@@ -16,11 +16,43 @@ public struct Stylesheet: Equatable {
 
     // MARK: Public methods
 
-    /// Parses a CSS document from a string.
+    /// Parses a CSS document.
     /// - Parameter string: The string to parse.
     /// - Returns: The parsed stylesheet.
     /// - Throws: A ``ParsingError`` if parsing fails.
     public static func parse(from string: String) throws -> Stylesheet {
+        let statements = try Self.parseStatements(from: string)
+        return Stylesheet(statements)
+    }
+
+    /// Parses a CSS document into statements. Statements are a higher level version of Tokens (see ``parseTokens(from:)``).
+    /// - Parameter string: The string to parse.
+    /// - Returns: The statements parsed from the document.
+    /// - Throws: A ``ParsingError`` if parsing fails.
+    public static func parseStatements(from string: String) throws -> [Statement] {
+        let tokens = try parseTokens(from: string)
+
+        // Parse tokens into statements
+        var iterator = tokens.makeIterator()
+        let statements = try parseStatements(from: &iterator)
+
+        // Ensure that the entire iterator has been consumed
+        guard iterator.next() == nil else {
+            var count = 1
+            while iterator.next() != nil {
+                count += 1
+            }
+            throw ParsingError(message: "Failed to parse document, \(count) tokens remained after parsing")
+        }
+
+        return statements
+    }
+
+    /// Parses a CSS document into tokens. Tokens are a more low-level representation than statements, and the main difference other than structure is that comments are maintained.
+    /// - Parameter string: The string to parse.
+    /// - Returns: The tokens parsed from the document.
+    /// - Throws: A ``ParsingError`` if parsing fails.
+    public static func parseTokens(from string: String) throws -> [Token] {
         // Create parser and remember to destroy it when finished
         let parser = css_parser_create()
         defer {
@@ -37,7 +69,7 @@ public struct Stylesheet: Equatable {
         }
 
         // Convert tokens to Swift types
-        var cTokens: [Token] = []
+        var tokens: [Token] = []
         while true {
             let cToken = css_parser_get_next_token(parser)
             guard let tokenType = TokenType(rawValue: Int(cToken.type.rawValue)) else {
@@ -51,23 +83,10 @@ public struct Stylesheet: Equatable {
                 break
             }
 
-            cTokens.append(Token(type: tokenType, data: data))
+            tokens.append(Token(type: tokenType, data: data))
         }
 
-        // Parse tokens into statements
-        var iterator = cTokens.makeIterator()
-        let statements = try parseStatements(from: &iterator)
-
-        // Ensure that the entire iterator has been consumed
-        guard iterator.next() == nil else {
-            var count = 1
-            while iterator.next() != nil {
-                count += 1
-            }
-            throw ParsingError(message: "Failed to parse document, \(count) tokens remained after parsing")
-        }
-
-        return Stylesheet(statements)
+        return tokens
     }
 
     /// Gets a string representation with the minimum possible length.
