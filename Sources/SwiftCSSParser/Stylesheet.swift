@@ -1,128 +1,20 @@
 import Foundation
 import CCSSParser
-import Metal
-
-/// An error which occurs during parsing. See ``Stylesheet/parse(from:)``.
-public struct ParsingError: LocalizedError {
-    /// The error message.
-    public var message: String
-
-    public var errorDescription: String? {
-        message
-    }
-}
-
-/// A straight translation of the underlying cssparser token type (from cpp).
-public struct Token {
-    /// The type of token
-    public var type: TokenType
-    /// Any textual data associated with this token.
-    public var data: String
-}
-
-/// A type of token. See ``Token``.
-public enum TokenType: Int, Equatable {
-    case charset
-    case importDeclaration
-    case namespace
-    case atStart
-    case atEnd
-    case selectorStart
-    case selectorEnd
-    case property
-    case value
-    case comment
-    case cssEnd
-}
-
-/// An at-block, e.g. an `@media` css block.
-public struct AtBlock: Equatable {
-    /// The block's identifier (e.g. for an `@media` it's `media`).
-    public var identifier: String
-    /// The statements nested inside the block.
-    public var statements: [Statement]
-
-    /// Gets a string representation with the minimum possible length.
-    /// - Returns: A minified string representation of this at-block.
-    public func minified() -> String {
-        let content = statements.map { statement in
-            statement.minified()
-        }.joined(separator: "")
-        return "@\(identifier){\(content)}"
-    }
-}
-
-/// A set of ``Declaration``s that apply to a specific selector.
-public struct RuleSet: Equatable {
-    /// The selector that this set of declarations applies to.
-    public var selector: String
-    /// The rule set's declarations.
-    public var declarations: [Declaration]
-
-    /// Gets a string representation with the minimum possible length.
-    /// - Returns: A minified string representation of this at-block.
-    public func minified() -> String {
-        var output = selector + "{"
-        for i in 0..<declarations.count {
-            let declaration = declarations[i]
-            output += declaration.property + ":" + declaration.value
-            if i != declarations.count - 1 {
-                output += ";"
-            }
-        }
-        output += "}"
-        return output
-    }
-}
-
-/// A declaration inside a ``RuleSet``.
-public struct Declaration: Equatable {
-    /// The property that this declaration is for.
-    public var property: String
-    /// The value this declaration sets for the property.
-    public var value: String
-}
-
-/// A CSS statement.
-public enum Statement: Equatable {
-    case charsetRule(String)
-    case importRule(String)
-    case namespaceRule(String)
-    case atBlock(AtBlock)
-    case ruleSet(RuleSet)
-
-    /// Gets a string representation with the minimum possible length.
-    /// - Returns: A minified string representation of this at-block.
-    public func minified() -> String {
-        switch self {
-            case .charsetRule(let string):
-                return "@charset \(string);"
-            case .importRule(let string):
-                return "@import \(string);"
-            case .namespaceRule(let string):
-                return "@namespace \(string);"
-            case .atBlock(let block):
-                return block.minified()
-            case .ruleSet(let ruleSet):
-                return ruleSet.minified()
-        }
-    }
-
-    public func prettyPrinted() -> String {
-        ""
-    }
-}
 
 /// A CSS stylesheet.
 public struct Stylesheet: Equatable {
     /// The stylesheet's tokens.
     public var statements: [Statement]
 
+    // MARK: Init
+
     /// Creates a stylesheet from a list of statements. Does not verify that the list of statements is strictly valid CSS.
     /// - Parameter statements: The sheet's stataements.
     public init(_ statements: [Statement]) {
         self.statements = statements
     }
+
+    // MARK: Public methods
 
     /// Parses a CSS document from a string.
     /// - Parameter string: The string to parse.
@@ -179,14 +71,28 @@ public struct Stylesheet: Equatable {
     }
 
     /// Gets a string representation with the minimum possible length.
-    /// - Returns: A minified string representation of this at-block.
+    /// - Returns: A minified string representation of this stylesheet.
     public func minified() -> String {
         return statements.map { statement in
             statement.minified()
         }.joined(separator: "")
     }
 
-    public static func parseStatements<Iterator: IteratorProtocol>(
+    /// Gets a nicely formatted string representation of this stylesheet.
+    /// - Parameter indentation: The style of indentation to use.
+    /// - Returns: A nicely formatted string representation of this stylesheet.
+    public func prettyPrinted(with indentation: IndentationStyle) -> String {
+        return statements.map { statement in
+            statement.prettyPrinted(with: indentation)
+        }.joined(separator: "\n\n")
+    }
+
+    // MARK: Private methods
+
+    /// Converts a token stream into a list of statements.
+    /// - Parameter tokens: The token stream to parse.
+    /// - Returns: A list of statements.
+    private static func parseStatements<Iterator: IteratorProtocol>(
         from tokens: inout Iterator
     ) throws -> [Statement] where Iterator.Element == Token {
         var statements: [Statement] = []
@@ -240,7 +146,11 @@ public struct Stylesheet: Equatable {
         return statements
     }
 
-    static func parseDeclarations<Iterator: IteratorProtocol>(
+    /// Parses a list of declarations from a stream of tokens. Stops when a token of type ``TokenType/selectorEnd`` is reached.
+    /// - Parameter tokens: The token stream to parse declarations from.
+    /// - Returns: A list of declarations.
+    /// - Throws: A ``ParsingError`` if a token other than ``TokenType/property``, ``TokenType/value``, ``TokenType/comment`` or ``TokenType/selectorEnd`` is encountered, or if a property token wasn't followed by a property token (ignoring comments).
+    private static func parseDeclarations<Iterator: IteratorProtocol>(
         from tokens: inout Iterator
     ) throws -> [Declaration] where Iterator.Element == Token {
         var declarations: [Declaration] = []

@@ -17,6 +17,21 @@ div {
     color: blue;
 """
 
+    static let nestedStatements = """
+@charset "UTF-8";
+
+    body {
+background: red;
+}
+
+@media (max-width: 600px) { body {
+        background: lightblue;}
+
+    div {color: blue
+    }
+}
+"""
+
     func testBasicParsing() throws {
         let stylesheet = try Stylesheet.parse(from: Self.ruleSet)
 
@@ -40,6 +55,45 @@ div {
         XCTAssertEqual(
             stylesheet.minified(),
             ".markdown-body code,.markdown-body kbd,.markdown-body pre,.markdown-body samp{font-family:monospace,monospace;font-size:1em}"
+        )
+    }
+
+    func testBasicPrettyPrint() throws {
+        let stylesheet = try Stylesheet.parse(from: Self.ruleSet)
+
+        XCTAssertEqual(
+            stylesheet.prettyPrinted(with: .spaces(2)),
+            """
+.markdown-body code,.markdown-body kbd,.markdown-body pre,.markdown-body samp {
+  font-family: monospace,monospace;
+  font-size: 1em;
+}
+"""
+        )
+    }
+
+    func testNestedStatementsPrettyPrint() throws {
+        let stylesheet = try Stylesheet.parse(from: Self.nestedStatements)
+
+        XCTAssertEqual(
+            stylesheet.prettyPrinted(with: .spaces(4)),
+            """
+@charset UTF-8;
+
+body {
+    background: red;
+}
+
+@media (max-width: 600px) {
+    body {
+        background: lightblue;
+    }
+
+    div {
+        color: blue;
+    }
+}
+"""
         )
     }
 
