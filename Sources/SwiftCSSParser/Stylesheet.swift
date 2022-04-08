@@ -12,7 +12,7 @@ public struct ParsingError: LocalizedError {
 }
 
 /// A type of token. See ``Token``.
-public enum TokenType: Int {
+public enum TokenType: Int, Equatable {
     case charset
     case importDeclaration
     case namespace
@@ -27,7 +27,7 @@ public enum TokenType: Int {
 }
 
 /// A token within a CSS stylesheet.
-public struct Token {
+public struct Token: Equatable {
     /// The token's type.
     public var type: TokenType
     /// The token's associated data.
@@ -50,6 +50,8 @@ public struct Token {
         }
         self.type = type
         self.data = String(cString: cToken.data)
+        print(self.data)
+        css_token_free(cToken)
     }
 }
 

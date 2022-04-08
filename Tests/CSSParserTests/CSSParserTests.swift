@@ -13,6 +13,16 @@ div {
     color: blue;
 """
 
+    static let multilineSelector = """
+.markdown-body code,
+.markdown-body kbd,
+.markdown-body pre,
+.markdown-body samp {
+    font-family: monospace, monospace;
+    font-size: 1em;
+}
+"""
+
     func testBasicParsing() {
         do {
             _ = try Stylesheet.parse(from: Self.basicCSS)
@@ -44,5 +54,34 @@ div {
         }
 
         XCTAssertEqual(stylesheet.minify(), "div{color:blue}")
+    }
+
+    func testExpectedTokens() throws {
+        let stylesheet = try Stylesheet.parse(from: Self.multilineSelector)
+
+        XCTAssertEqual(
+            stylesheet.tokens[0],
+            Token(type: .selectorStart, data: ".markdown-body code,.markdown-body kbd,.markdown-body pre,.markdown-body samp")
+        )
+        XCTAssertEqual(
+            stylesheet.tokens[1],
+            Token(type: .property, data: "font-family")
+        )
+        XCTAssertEqual(
+            stylesheet.tokens[2],
+            Token(type: .value, data: "monospace,monospace")
+        )
+        XCTAssertEqual(
+            stylesheet.tokens[3],
+            Token(type: .property, data: "font-size")
+        )
+        XCTAssertEqual(
+            stylesheet.tokens[4],
+            Token(type: .value, data: "1em")
+        )
+        XCTAssertEqual(
+            stylesheet.tokens[5],
+            Token(type: .selectorEnd, data: ".markdown-body code,.markdown-body kbd,.markdown-body pre,.markdown-body samp")
+        )
     }
 }

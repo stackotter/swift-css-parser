@@ -66,7 +66,8 @@ CToken css_parser_get_next_token(CCSSParser *parser) {
     CSSParser::token token = reinterpret_cast<CSSParser *>(parser)->get_next_token();
     
     char *data = reinterpret_cast<char *>(malloc(token.data.length()));
-    memcpy(data, token.data.c_str(), token.data.length());
+    strncpy(data, token.data.c_str(), token.data.length());
+    data[token.data.length()] = 0;
 
     CToken c_token;
     c_token.type = static_cast<CTokenType>(token.type);
