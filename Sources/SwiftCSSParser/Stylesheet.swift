@@ -50,7 +50,6 @@ public struct Token: Equatable {
         }
         self.type = type
         self.data = String(cString: cToken.data)
-        print(self.data)
         css_token_free(cToken)
     }
 }
@@ -98,6 +97,7 @@ public struct Stylesheet {
     /// Creates a minified representation of the stylesheet.
     /// - Returns: A minified CSS string.
     public func minify() -> String {
+        let tokens = tokens.filter { $0.type != .comment }
         var minified = ""
         for i in 0..<tokens.count {
             let token = tokens[i]
