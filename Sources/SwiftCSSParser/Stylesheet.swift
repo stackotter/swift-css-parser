@@ -1,5 +1,6 @@
 import Foundation
 import CCSSParser
+import Metal
 
 /// An error which occurs during parsing. See ``Stylesheet/parse(from:)``.
 public struct ParsingError: LocalizedError {
@@ -9,6 +10,14 @@ public struct ParsingError: LocalizedError {
     public var errorDescription: String? {
         message
     }
+}
+
+/// A straight translation of the underlying cssparser token type (from cpp).
+public struct Token {
+    /// The type of token
+    public var type: TokenType
+    /// Any textual data associated with this token.
+    public var data: String
 }
 
 /// A type of token. See ``Token``.
@@ -26,43 +35,93 @@ public enum TokenType: Int, Equatable {
     case cssEnd
 }
 
-/// A token within a CSS stylesheet.
-public struct Token: Equatable {
-    /// The token's type.
-    public var type: TokenType
-    /// The token's associated data.
-    public var data: String
+/// An at-block, e.g. an `@media` css block.
+public struct AtBlock: Equatable {
+    /// The block's identifier (e.g. for an `@media` it's `media`).
+    public var identifier: String
+    /// The statements nested inside the block.
+    public var statements: [Statement]
 
-    /// Creates a new token.
-    /// - Parameters:
-    ///   - type: The token's type.
-    ///   - data: The token's associated data.
-    public init(type: TokenType, data: String) {
-        self.type = type
-        self.data = data
+    /// Gets a string representation with the minimum possible length.
+    /// - Returns: A minified string representation of this at-block.
+    public func minified() -> String {
+        let content = statements.map { statement in
+            statement.minified()
+        }.joined(separator: "")
+        return "@\(identifier){\(content)}"
+    }
+}
+
+/// A set of ``Declaration``s that apply to a specific selector.
+public struct RuleSet: Equatable {
+    /// The selector that this set of declarations applies to.
+    public var selector: String
+    /// The rule set's declarations.
+    public var declarations: [Declaration]
+
+    /// Gets a string representation with the minimum possible length.
+    /// - Returns: A minified string representation of this at-block.
+    public func minified() -> String {
+        var output = selector + "{"
+        for i in 0..<declarations.count {
+            let declaration = declarations[i]
+            output += declaration.property + ":" + declaration.value
+            if i != declarations.count - 1 {
+                output += ";"
+            }
+        }
+        output += "}"
+        return output
+    }
+}
+
+/// A declaration inside a ``RuleSet``.
+public struct Declaration: Equatable {
+    /// The property that this declaration is for.
+    public var property: String
+    /// The value this declaration sets for the property.
+    public var value: String
+}
+
+/// A CSS statement.
+public enum Statement: Equatable {
+    case charsetRule(String)
+    case importRule(String)
+    case namespaceRule(String)
+    case atBlock(AtBlock)
+    case ruleSet(RuleSet)
+
+    /// Gets a string representation with the minimum possible length.
+    /// - Returns: A minified string representation of this at-block.
+    public func minified() -> String {
+        switch self {
+            case .charsetRule(let string):
+                return "@charset \(string);"
+            case .importRule(let string):
+                return "@import \(string);"
+            case .namespaceRule(let string):
+                return "@namespace \(string);"
+            case .atBlock(let block):
+                return block.minified()
+            case .ruleSet(let ruleSet):
+                return ruleSet.minified()
+        }
     }
 
-    /// Creates a token from a c representation of the token.
-    /// - Parameter cToken: The c representation of the token.
-    public init?(_ cToken: CToken) {
-        guard let type = TokenType(rawValue: Int(cToken.type.rawValue)) else {
-            return nil
-        }
-        self.type = type
-        self.data = String(cString: cToken.data)
-        css_token_free(cToken)
+    public func prettyPrinted() -> String {
+        ""
     }
 }
 
 /// A CSS stylesheet.
-public struct Stylesheet {
+public struct Stylesheet: Equatable {
     /// The stylesheet's tokens.
-    public var tokens: [Token]
+    public var statements: [Statement]
 
-    /// Creates a stylesheet from a list of tokens. Does not verify that the list of tokens is valid.
-    /// - Parameter tokens: The sheet's tokens.
-    public init(_ tokens: [Token]) {
-        self.tokens = tokens
+    /// Creates a stylesheet from a list of statements. Does not verify that the list of statements is strictly valid CSS.
+    /// - Parameter statements: The sheet's stataements.
+    public init(_ statements: [Statement]) {
+        self.statements = statements
     }
 
     /// Parses a CSS document from a string.
@@ -86,52 +145,141 @@ public struct Stylesheet {
         }
 
         // Convert tokens to Swift types
-        var tokens: [Token] = []
-        while let token = Token(css_parser_get_next_token(parser)), token.type != .cssEnd {
-            tokens.append(token)
+        var cTokens: [Token] = []
+        while true {
+            let cToken = css_parser_get_next_token(parser)
+            guard let tokenType = TokenType(rawValue: Int(cToken.type.rawValue)) else {
+                throw ParsingError(message: "Invalid token type: \(cToken.type.rawValue)")
+            }
+
+            let data = String(cString: cToken.data)
+            css_token_free(cToken)
+
+            if tokenType == .cssEnd {
+                break
+            }
+
+            cTokens.append(Token(type: tokenType, data: data))
         }
 
-        return Stylesheet(tokens)
+        // Parse tokens into statements
+        var iterator = cTokens.makeIterator()
+        let statements = try parseStatements(from: &iterator)
+
+        // Ensure that the entire iterator has been consumed
+        guard iterator.next() == nil else {
+            var count = 1
+            while iterator.next() != nil {
+                count += 1
+            }
+            throw ParsingError(message: "Failed to parse document, \(count) tokens remained after parsing")
+        }
+
+        return Stylesheet(statements)
     }
 
-    /// Creates a minified representation of the stylesheet.
-    /// - Returns: A minified CSS string.
-    public func minify() -> String {
-        let tokens = tokens.filter { $0.type != .comment }
-        var minified = ""
-        for i in 0..<tokens.count {
-            let token = tokens[i]
-            let next = (i + 1 < tokens.count) ? tokens[i + 1] : nil
+    /// Gets a string representation with the minimum possible length.
+    /// - Returns: A minified string representation of this at-block.
+    public func minified() -> String {
+        return statements.map { statement in
+            statement.minified()
+        }.joined(separator: "")
+    }
 
+    public static func parseStatements<Iterator: IteratorProtocol>(
+        from tokens: inout Iterator
+    ) throws -> [Statement] where Iterator.Element == Token {
+        var statements: [Statement] = []
+
+    loop:
+        while let token = tokens.next() {
+            let content = token.data
             switch token.type {
                 case .charset:
-                    minified += "@charset \(token.data);"
+                    statements.append(.charsetRule(content))
                 case .importDeclaration:
-                    minified += "@import \(token.data);"
+                    statements.append(.importRule(content))
                 case .namespace:
-                    minified += "@namespace \(token.data);"
+                    statements.append(.namespaceRule(content))
+
                 case .atStart:
-                    minified += token.data + "{"
+                    // The leading @ symbol must be removed
+                    let identifier = String(content.dropFirst())
+                    let childStatements = try parseStatements(from: &tokens)
+                    statements.append(.atBlock(AtBlock(
+                        identifier: identifier,
+                        statements: childStatements)
+                    ))
                 case .atEnd:
-                    minified += "}"
+                    break loop
+
                 case .selectorStart:
-                    minified += token.data + "{"
+                    let selector = content
+                    let declarations = try parseDeclarations(from: &tokens)
+                    statements.append(.ruleSet(RuleSet(
+                        selector: selector,
+                        declarations: declarations)
+                    ))
                 case .selectorEnd:
-                    minified += "}"
+                    throw ParsingError(message: "selectorEnd token found outside of a selector block")
+
+                // If either property or value is reached through these cases, they are not inside a block and are therefore ignored
                 case .property:
-                    minified += token.data + ":"
+                    continue loop
                 case .value:
-                    minified += token.data
-                    if next?.type == .property {
-                        minified += ";"
-                    }
+                    continue loop
+
                 case .comment:
-                    continue
+                    // Comments are not statements
+                    continue loop
+
                 case .cssEnd:
-                    break
+                    break loop
             }
         }
+        return statements
+    }
 
-        return minified
+    static func parseDeclarations<Iterator: IteratorProtocol>(
+        from tokens: inout Iterator
+    ) throws -> [Declaration] where Iterator.Element == Token {
+        var declarations: [Declaration] = []
+        while true {
+            // Get the property (skipping comments)
+            var propertyToken = tokens.next()
+            while propertyToken?.type == .comment {
+                propertyToken = tokens.next()
+            }
+
+            guard let propertyToken = propertyToken else {
+                throw ParsingError(message: "Expected property, got end of token stream")
+            }
+
+            if propertyToken.type == .selectorEnd {
+                // The end of the ruleset has been reached
+                break
+            }
+
+            guard propertyToken.type == .property else {
+                throw ParsingError(message: "Expected property, got \(propertyToken.type)")
+            }
+
+            // Get the value (skipping comments)
+            var valueToken = tokens.next()
+            while valueToken?.type == .comment {
+                valueToken = tokens.next()
+            }
+
+            guard let valueToken = valueToken else {
+                throw ParsingError(message: "Expected value, got end of token stream")
+            }
+
+            guard valueToken.type == .value else {
+                throw ParsingError(message: "Expected value to follow property, but got \(valueToken.type)")
+            }
+
+            declarations.append(Declaration(property: propertyToken.data, value: valueToken.data))
+        }
+        return declarations
     }
 }
