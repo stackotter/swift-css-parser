@@ -3,6 +3,8 @@ extern "C" {
 }
 
 #include <CSSParser.h>
+#include <string.h>
+#include <memory.h>
 
 extern "C" {
 
