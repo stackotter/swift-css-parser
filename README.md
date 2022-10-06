@@ -9,30 +9,50 @@ Here's a simple code snippet to get you started.
 ```swift
 // An example stylesheet (with horrible formatting)
 let css = """
-div { color: blue
+div { background: blue
   }
 """
 
 // Parse the stylesheet
 let stylesheet = try Stylesheet.parse(css)
 
-print(stylesheet.minified())
-// div{color:blue}
+// Minify
+assert(
+  stylesheet.minified())
+    ==
+  "div{color:blue}"
+)
 
-print(stylesheet.prettyPrinted(with: .spaces(2))
-// div {
-//   color: blue;
-// }
+// Pretty print
+assert(
+  stylesheet.prettyPrinted(with: .spaces(2))
+    ==
+  """
+  div {
+    color: blue;
+  }
+  """
+)
 
-print(stylesheet)
-// Stylesheet([
-//     .ruleSet(RuleSet(
-//         selector: "div",
-//         declarations: [
-//             Declaration(property: "color", value: "blue")
-//         ]
-//     ))
-// ])
+// Extract property
+var background: String?
+for statement in stylesheet.statements {
+  switch statement {
+    case .ruleSet(let ruleSet):
+      for declaration in ruleSet.declarations where declaration.property == "background" {
+        background = declaration.value
+        break
+      }
+    default:
+      break
+  }
+}
+
+assert(
+  background
+    ==
+  "blue"
+)
 ```
 
 ## Statements
